@@ -1,6 +1,6 @@
 /* Rage face sprites */
 span.rage {
-    background-image: url(http://static.ragechats.com/img/ragefaces.gif);
+    background-image: url(/static/img/ragefaces.gif);
     display: inline-block;
     height: 64px;
     vertical-align: -10%;

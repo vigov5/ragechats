@@ -12,7 +12,7 @@ import tornado.ioloop
 import tornado.httpserver
 import tornado.web
 import tornado.websocket
-
+import time
 
 # Globals
 clients = collections.defaultdict(set)
@@ -24,28 +24,32 @@ class PubSubThread(threading.Thread):
     def run(self):
         redis_pubsub.psubscribe("*")
 
-        for message in redis_pubsub.listen():
-            data = json.loads(message['data'])
-            if message['type'] == "pmessage":
+        while True:
+            message = redis_pubsub.get_message()
+            if message and message['data'] != 1:
+                print message
+                data = json.loads(message['data'])
+                if message['type'] == "pmessage":
 
-                # Server-wide notice from admin
-                if message['channel'] == "server-notice":
-                    for chat_id in clients.keys():
-                        for client in clients[chat_id]:
+                    # Server-wide notice from admin
+                    if message['channel'] == "server-notice":
+                        for chat_id in clients.keys():
+                            for client in clients[chat_id]:
+                                client.send_message(
+                                    type = "alert-message warning",
+                                    user_id = "Server",
+                                    body = data['body']
+                                )
+
+                    # Normal message to a specific chatroom
+                    else:
+                        for client in clients[message['channel']]:
                             client.send_message(
-                                type = "alert-message warning",
-                                user_id = "Server",
+                                type = data['type'],
+                                user_id = data['user_id'],
                                 body = data['body']
                             )
-
-                # Normal message to a specific chatroom
-                else:
-                    for client in clients[message['channel']]:
-                        client.send_message(
-                            type = data['type'],
-                            user_id = data['user_id'],
-                            body = data['body']
-                        )
+            time.sleep(0.001)
 
 
 class Application(tornado.web.Application):
@@ -59,6 +63,8 @@ class Application(tornado.web.Application):
         ]
         settings = dict(
             gzip = True,
+            debug = True,
+            auto_reload = True,
             login_url = "/",
             static_path = os.path.join(os.path.dirname(__file__), "static"),
             template_path = os.path.join(os.path.dirname(__file__),
